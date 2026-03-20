@@ -4,22 +4,6 @@ A template to allow easy usage of the Meteor Addon API.
 
 ### How to use
 
-#### Use GitHub Template (Recommended)
-
-- Click the green `Use this template` button in the top right corner of this page.  
-  This will create a new repository with this template and a clean history.
-
-#### Clone Manually
-
-- Alternatively, clone this repository using these commands for a clean history:
-  ```bash
-  git clone --depth 1 https://github.com/MeteorDevelopment/meteor-addon-template your-addon-name
-  cd your-addon-name
-  rm -rf .git
-  git init
-  git add .
-  git commit -m "Initial commit from template"
-  ```
 
 #### Development
 
@@ -135,6 +119,3 @@ Here is a brief explanation of the ones you might need to modify:
 - `README.md`: Contains the documentation of the addon.  
   You can edit this file to reflect the documentation of your addon, and showcase its features.
 
-## License
-
-This template is available under the CC0 license. Feel free to use it for your own projects.
