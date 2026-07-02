@@ -1,7 +1,7 @@
 package com.example.addon;
 
-import com.example.addon.modules.PlayerTeleport;
-import com.example.addon.modules.BasePlace;
+import com.example.addon.modules.*;
+import com.example.addon.security.Verifier;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -17,8 +17,17 @@ public class Dune extends MeteorAddon {
         @Override
         public void onInitialize() {
                 LOG.info("Initializing Dune");
+
+               // if (!Verifier.verifyOrShutdown(LOG)) {
+               //         return;
+               // }
+
                 Modules.get().add(new PlayerTeleport());
                 Modules.get().add(new BasePlace());
+                Modules.get().add(new AutoOminous());
+                Modules.get().add(new InfiniteInteract());
+                Modules.get().add(new AutoOminous());
+                Modules.get().add(new AutoObsidianFarm());
 
         }
 

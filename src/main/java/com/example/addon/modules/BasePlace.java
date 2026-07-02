@@ -16,6 +16,7 @@ import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Items;
+import net.minecraft.block.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
@@ -82,6 +83,13 @@ public class BasePlace extends Module {
         .build()
     );
 
+    private final Setting<Boolean> silentSwap = sgGeneral.add(new BoolSetting.Builder()
+        .name("silent-swap")
+        .description("Uses a temporary hotbar swap to place obsidian and then swaps back.")
+        .defaultValue(true)
+        .build()
+    );
+
     private final Setting<Boolean> swing = sgGeneral.add(new BoolSetting.Builder()
         .name("swing")
         .description("Render a hand swing on placement.")
@@ -99,6 +107,13 @@ public class BasePlace extends Module {
     private final Setting<Boolean> pauseOnMine = sgGeneral.add(new BoolSetting.Builder()
         .name("pause-on-mine")
         .description("Pauses while mining blocks.")
+        .defaultValue(false)
+        .build()
+    );
+
+    private final Setting<Boolean> skipExistingValidObsidian = sgGeneral.add(new BoolSetting.Builder()
+        .name("skip-existing-valid-obsidian")
+        .description("Skips placing a new support block if an existing obsidian already enables a valid crystal spot.")
         .defaultValue(false)
         .build()
     );
@@ -132,9 +147,11 @@ public class BasePlace extends Module {
         PlayerEntity target = findNearestTarget();
         if (target == null) return;
 
+        if (skipExistingValidObsidian.get() && hasExistingValidObsidianSpot(target)) return;
+
         if (!findBestSupportPos(target)) return;
 
-        boolean placed = BlockUtils.place(bestPos, obsidian, rotate.get(), 50, swing.get(), true, false);
+        boolean placed = BlockUtils.place(bestPos, obsidian, rotate.get(), 50, swing.get(), true, silentSwap.get());
         if (placed) placeTimer = placeDelay.get();
     }
 
@@ -183,15 +200,10 @@ public class BasePlace extends Module {
 
                     if (!isValidSupportPos(pos, target)) continue;
 
-                    Vec3d crystalPos = new Vec3d(pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5);
-                    float targetDamage = DamageUtils.crystalDamage(target, crystalPos, false, pos);
-                    float selfDamage = DamageUtils.crystalDamage(mc.player, crystalPos, false, pos);
+                    float[] damages = calculateCrystalDamages(target, pos);
+                    if (!passesDamageConstraints(damages[0], damages[1])) continue;
 
-                    if (targetDamage < minTargetDamage.get()) continue;
-                    if (selfDamage > maxSelfDamage.get()) continue;
-                    if (antiSuicide.get() && selfDamage >= EntityUtils.getTotalHealth(mc.player)) continue;
-
-                    double score = targetDamage - selfDamage * 0.35;
+                    double score = damages[0] - damages[1] * 0.35;
                     if (!found || score > bestScore) {
                         bestScore = score;
                         bestPos.set(pos);
@@ -209,19 +221,65 @@ public class BasePlace extends Module {
         if (!mc.world.isInBuildLimit(pos) || !mc.world.isInBuildLimit(pos.up(2))) return false;
 
         if (!mc.world.getBlockState(pos).isReplaceable()) return false;
-        if (!mc.world.getBlockState(pos.up()).isAir()) return false;
-        if (!mc.world.getBlockState(pos.up(2)).isAir()) return false;
 
-        Vec3d placePos = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+        return isValidCrystalSpotAboveBase(pos, target);
+    }
+
+    private boolean hasExistingValidObsidianSpot(PlayerEntity target) {
+        if (mc.player == null || mc.world == null) return false;
+
+        int radius = (int) Math.ceil(placeRange.get());
+        BlockPos playerPos = mc.player.getBlockPos();
+
+        BlockPos.Mutable pos = new BlockPos.Mutable();
+        for (int x = -radius; x <= radius; x++) {
+            for (int y = -radius; y <= radius; y++) {
+                for (int z = -radius; z <= radius; z++) {
+                    pos.set(playerPos.getX() + x, playerPos.getY() + y, playerPos.getZ() + z);
+
+                    if (!mc.world.getBlockState(pos).isOf(Blocks.OBSIDIAN)) continue;
+                    if (!isValidCrystalSpotAboveBase(pos, target)) continue;
+
+                    float[] damages = calculateCrystalDamages(target, pos);
+                    if (passesDamageConstraints(damages[0], damages[1])) return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private float[] calculateCrystalDamages(PlayerEntity target, BlockPos basePos) {
+        Vec3d crystalPos = new Vec3d(basePos.getX() + 0.5, basePos.getY() + 1, basePos.getZ() + 0.5);
+        float targetDamage = DamageUtils.crystalDamage(target, crystalPos, false, basePos);
+        float selfDamage = DamageUtils.crystalDamage(mc.player, crystalPos, false, basePos);
+        return new float[] { targetDamage, selfDamage };
+    }
+
+    private boolean passesDamageConstraints(float targetDamage, float selfDamage) {
+        if (mc.player == null) return false;
+        if (targetDamage < minTargetDamage.get()) return false;
+        if (selfDamage > maxSelfDamage.get()) return false;
+        return !antiSuicide.get() || selfDamage < EntityUtils.getTotalHealth(mc.player);
+    }
+
+    private boolean isValidCrystalSpotAboveBase(BlockPos basePos, PlayerEntity target) {
+        if (mc.player == null || mc.world == null) return false;
+        if (!mc.world.isInBuildLimit(basePos) || !mc.world.isInBuildLimit(basePos.up(2))) return false;
+
+        if (!mc.world.getBlockState(basePos.up()).isAir()) return false;
+        if (!mc.world.getBlockState(basePos.up(2)).isAir()) return false;
+
+        Vec3d placePos = new Vec3d(basePos.getX() + 0.5, basePos.getY() + 0.5, basePos.getZ() + 0.5);
         double rangeSq = placeRange.get() * placeRange.get();
         if (mc.player.squaredDistanceTo(placePos) > rangeSq) return false;
 
         // Keep support close to the chosen enemy so the enabled crystal spot is meaningful.
-        if (target.squaredDistanceTo(pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5) > targetRange.get() * targetRange.get()) return false;
+        if (target.squaredDistanceTo(basePos.getX() + 0.5, basePos.getY() + 1, basePos.getZ() + 0.5) > targetRange.get() * targetRange.get()) return false;
 
         Box crystalBox = new Box(
-            pos.getX(), pos.getY() + 1, pos.getZ(),
-            pos.getX() + 1, pos.getY() + 3, pos.getZ() + 1
+            basePos.getX(), basePos.getY() + 1, basePos.getZ(),
+            basePos.getX() + 1, basePos.getY() + 3, basePos.getZ() + 1
         );
 
         return !EntityUtils.intersectsWithEntity(crystalBox, entity -> !entity.isSpectator());

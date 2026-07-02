@@ -8,7 +8,7 @@
     "t3af"
   ],
   "contact": {
-    "sources": "t3af on discord"
+    "discord": "t3af"
   },
   "icon": "assets/template/icon.png",
   "environment": "client",
@@ -21,7 +21,7 @@
     "addon-template.mixins.json"
   ],
   "custom": {
-    "meteor-client:color": "225,25,25",
+    "meteor-client:color": "212,156,42",
     "modmenu": {
       "parent": {
         "id": "meteor-client"

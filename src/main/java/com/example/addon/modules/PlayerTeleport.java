@@ -1,4 +1,3 @@
-//written by etianll :D
 package com.example.addon.modules;
 
 import com.example.addon.Dune;
@@ -20,7 +19,7 @@ public class PlayerTeleport extends Module {
     private final Setting<Integer> range = sgGeneral.add(new IntSetting.Builder()
         .name("range")
         .description("Maximum distance to search for players.")
-        .defaultValue(48)
+        .defaultValue(80)
         .sliderRange(8, 128)
         .min(1)
         .max(256)
